@@ -15,6 +15,11 @@ router.get("/:id", (req, res) => {
 // >>> BUG 2 (bajo riesgo): falta validación de null / input vacío <<<
 router.post("/", (req, res) => {
   const datos = req.body;
+
+  if (!datos.nombre || !datos.email) {
+    return res.status(400).json({ error: "Los campos 'nombre' y 'email' son requeridos" });
+  }
+
   const nombreLimpio = datos.nombre.trim();
   const emailLimpio = datos.email.trim();
 
@@ -33,7 +38,7 @@ router.get("/:id/es-mayor-de-edad", (req, res) => {
   if (!usuario) return res.status(404).json({ error: "Usuario no encontrado" });
 
   let esMayor = false;
-  if (usuarioo.edad >= 18) {
+  if (usuario.edad >= 18) {
     esMayor = true;
   }
 

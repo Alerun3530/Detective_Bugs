@@ -1,0 +1,356 @@
+{
+  "name": "El Detective de Bugs - Orquestador + agente local (Cloudflare)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "error-critico",
+        "options": {}
+      },
+      "id": "dc84731e-5556-4315-b322-fb9bb39e0e63",
+      "name": "Webhook: error crítico",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "66a42789-31c0-4a0b-bdca-dfd0fee9667e"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "55a55bdd-b766-4627-81c7-970838924a08",
+      "name": "Cada 5 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "url": "TU_URL_CLOUDFARE/api/monitoreo/anomalias",
+        "options": {}
+      },
+      "id": "839b7289-9b5e-455f-a115-cf7d518cf276",
+      "name": "Consultar monitor anomalías",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-hay-anomalias",
+              "leftValue": "={{ $json.anomalias_detectadas }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6cbf19f6-6f6c-472a-a181-e803d0e2030d",
+      "name": "¿Hay anomalías?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        304
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "b9acd920-faf5-4eed-a614-9ff0bd11272b",
+      "name": "Fin (sin costo, sin IA)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        672,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "alertas",
+        "options": {}
+      },
+      "id": "f3f679f0-6dad-42c8-913d-3025c803628e",
+      "name": "Separar alertas",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        672,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "error_id",
+              "type": "string",
+              "value": "={{ $now.toMillis() }}-{{ $json.usuario_id }}"
+            },
+            {
+              "id": "a2",
+              "name": "timestamp",
+              "type": "string",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "id": "a3",
+              "name": "descripcion",
+              "type": "string",
+              "value": "={{ $json.descripcion }}"
+            },
+            {
+              "id": "a4",
+              "name": "endpoint",
+              "type": "string",
+              "value": "={{ $json.endpoint_afectado }}"
+            },
+            {
+              "id": "a5",
+              "name": "severity",
+              "type": "string",
+              "value": "={{ $json.severity }}"
+            },
+            {
+              "id": "a7",
+              "name": "origen",
+              "type": "string",
+              "value": "monitor_anomalias"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "76c10be3-1fe2-40cc-b67d-2d6141be0bd3",
+      "name": "Normalizar payload (anomalía)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1",
+              "name": "error_id",
+              "type": "string",
+              "value": "={{ $json.body.error_id }}"
+            },
+            {
+              "id": "b2",
+              "name": "timestamp",
+              "type": "string",
+              "value": "={{ $json.body.timestamp }}"
+            },
+            {
+              "id": "b3",
+              "name": "descripcion",
+              "type": "string",
+              "value": "={{ $json.body.stack_trace }}"
+            },
+            {
+              "id": "b4",
+              "name": "endpoint",
+              "type": "string",
+              "value": "={{ $json.body.endpoint }}"
+            },
+            {
+              "id": "b5",
+              "name": "severity",
+              "type": "string",
+              "value": "={{ $json.body.severity }}"
+            },
+            {
+              "id": "b7",
+              "name": "origen",
+              "type": "string",
+              "value": "webhook_excepcion"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a6eb1618-c82c-4e22-b0fa-6715ffff5739",
+      "name": "Normalizar payload (crash)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "TU_URL_CLOUDFARE/procesar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Agent-Token",
+              "value": "TU_TOKEN"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 420000
+        }
+      },
+      "id": "ee34e604-2bb5-4a03-8f7c-0039e18f590a",
+      "name": "Llamar agente local (via Cloudflare)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1328,
+        80
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook: error crítico": {
+      "main": [
+        [
+          {
+            "node": "Normalizar payload (crash)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cada 5 minutos": {
+      "main": [
+        [
+          {
+            "node": "Consultar monitor anomalías",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar monitor anomalías": {
+      "main": [
+        [
+          {
+            "node": "¿Hay anomalías?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay anomalías?": {
+      "main": [
+        [
+          {
+            "node": "Separar alertas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin (sin costo, sin IA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar alertas": {
+      "main": [
+        [
+          {
+            "node": "Normalizar payload (anomalía)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar payload (anomalía)": {
+      "main": [
+        [
+          {
+            "node": "Llamar agente local (via Cloudflare)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar payload (crash)": {
+      "main": [
+        [
+          {
+            "node": "Llamar agente local (via Cloudflare)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar agente local (via Cloudflare)": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "87be9137-6cce-40b8-ad1d-53082697be2b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0182980b6f094a7a78a53ef9ea53002e1f51b512add1429a9c3c00635b82b83d"
+  },
+  "nodeGroups": [],
+  "id": "eNXb5ThvixJOqJbl",
+  "tags": []
+}
