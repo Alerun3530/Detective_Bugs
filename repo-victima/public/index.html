@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>repo-victima — consola</title>
+<style>
+  :root {
+    --bg: #14171c; --panel: #1b1f26; --panel-border: #2a2f38;
+    --text: #e7e9ec; --text-dim: #8b93a1;
+    --teal: #2dd4bf; --amber: #f2a93b; --red: #e5484d;
+    --mono: ui-monospace, "SF Mono", Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+  header { padding: 28px 32px 20px; border-bottom: 1px solid var(--panel-border); }
+  header h1 { margin: 0 0 6px; font-size: 20px; font-weight: 600; }
+  header p { margin: 0; color: var(--text-dim); font-size: 14px; max-width: 60ch; }
+  main { display: grid; grid-template-columns: 340px 1fr; gap: 24px; padding: 24px 32px 40px; }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+  section h2 { font-size: 13px; font-weight: 600; color: var(--text-dim); margin: 0 0 12px; }
+  .usuario-card { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+  .usuario-card .fila-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .usuario-card .nombre { font-weight: 600; font-size: 15px; }
+  .usuario-card .id { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+  .usuario-card .meta { font-size: 13px; color: var(--text-dim); display: flex; gap: 14px; }
+  .usuario-card .meta strong { color: var(--text); font-weight: 500; }
+  .usuario-card.destacado { border-color: var(--amber); }
+  .usuario-card .etiqueta-riesgo { display: inline-block; margin-top: 8px; font-size: 11px; color: var(--amber); border: 1px solid var(--amber); border-radius: 4px; padding: 1px 6px; }
+  .refrescar { background: none; border: 1px solid var(--panel-border); color: var(--text-dim); font-size: 12px; padding: 4px 10px; border-radius: 6px; cursor: pointer; margin: 0 6px 12px 0; }
+  .refrescar:hover { color: var(--text); border-color: var(--text-dim); }
+  .consola { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 20px; }
+  .bug-fila { display: flex; align-items: flex-start; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--panel-border); }
+  .bug-fila:last-child { border-bottom: none; }
+  .bug-info { flex: 1; }
+  .bug-info .titulo { font-weight: 600; font-size: 14px; margin-bottom: 3px; }
+  .bug-info .desc { font-size: 13px; color: var(--text-dim); max-width: 46ch; }
+  .gravedad { font-size: 11px; padding: 1px 7px; border-radius: 4px; margin-left: 8px; }
+  .gravedad.bajo { color: var(--teal); border: 1px solid var(--teal); }
+  .gravedad.alto { color: var(--amber); border: 1px solid var(--amber); }
+  button.disparar { background: var(--teal); color: #08211d; border: none; font-weight: 600; font-size: 13px; padding: 8px 16px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+  button.disparar:hover { filter: brightness(1.08); }
+  button.disparar:disabled { opacity: 0.5; cursor: default; }
+  .salida { margin-top: 18px; background: #0f1216; border: 1px solid var(--panel-border); border-left-width: 3px; border-radius: 6px; padding: 14px 16px; font-family: var(--mono); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow-y: auto; }
+  .salida.vacia { color: var(--text-dim); font-family: var(--sans); border-left-color: var(--panel-border); }
+  .salida.ok { border-left-color: var(--teal); }
+  .salida.riesgo { border-left-color: var(--amber); }
+  .salida.error { border-left-color: var(--red); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>repo-victima — consola</h1>
+  <p>Panel manual para navegar los usuarios de prueba y disparar los 3 bugs plantados, sin usar curl.</p>
+  <p style="margin-top: 10px;"><a href="/historial.html" style="color: #2dd4bf; font-size: 13px; text-decoration: none;">Ver historial de incidentes del agente →</a></p>
+</header>
+
+<main>
+  <section>
+    <h2>Usuarios</h2>
+    <button class="refrescar" onclick="cargarUsuarios()">Actualizar lista</button>
+    <button class="refrescar" onclick="resetearDatos()" style="border-color: #f2a93b; color: #f2a93b;">Restaurar datos</button>
+    <button class="refrescar" onclick="resetearCodigo()" style="border-color: #e5484d; color: #e5484d;">Restaurar código (bugs)</button>
+    <div id="lista-usuarios">Cargando…</div>
+  </section>
+
+  <section>
+    <h2>Consola de bugs</h2>
+    <div class="consola">
+
+      <div class="bug-fila">
+        <div class="bug-info">
+          <div class="titulo">Bug 1 — Chequeo de mayoría de edad<span class="gravedad bajo">bajo riesgo</span></div>
+          <div class="desc">ReferenceError por typo. Se prueba contra Luis Pérez (id 2, 17 años).</div>
+        </div>
+        <button class="disparar" onclick="dispararBug1(this)">Disparar</button>
+      </div>
+
+      <div class="bug-fila">
+        <div class="bug-info">
+          <div class="titulo">Bug 2 — Alta de usuario sin validar<span class="gravedad bajo">bajo riesgo</span></div>
+          <div class="desc">POST sin nombre ni email. Debería devolver un TypeError 500.</div>
+        </div>
+        <button class="disparar" onclick="dispararBug2(this)">Disparar</button>
+      </div>
+
+      <div class="bug-fila">
+        <div class="bug-info">
+          <div class="titulo">Bug 3 — Nivel de cliente<span class="gravedad alto">alto riesgo</span></div>
+          <div class="desc">No tira error. Se detecta con el monitor de anomalías (Sofía, id 5).</div>
+        </div>
+        <button class="disparar" onclick="dispararBug3(this)">Consultar monitor</button>
+      </div>
+
+      <div id="salida" class="salida vacia">La respuesta del endpoint disparado aparece acá.</div>
+    </div>
+  </section>
+</main>
+
+<script>
+  let CONFIG = { n8nWebhookUrl: null, supabaseUrl: null, supabaseKey: null };
+
+  async function cargarConfig() {
+    try {
+      const res = await fetch('/api/config');
+      CONFIG = await res.json();
+    } catch (e) {
+      console.warn('No se pudo cargar /api/config:', e.message);
+    }
+  }
+
+  async function notificarN8n(datosError, endpoint, severity) {
+  const payload = {
+    error_id: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+    stack_trace:
+      datosError.stack ||
+      datosError.error ||
+      JSON.stringify(datosError),
+    endpoint: endpoint,
+    severity: severity
+  };
+
+  try {
+    const res = await fetch("/api/error-critico", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const respuesta = await res.json();
+
+    if (!res.ok) {
+      return {
+        avisado: false,
+        motivo: respuesta.error || "Error al enviar el aviso a n8n"
+      };
+    }
+
+    return {
+      avisado: true,
+      respuesta: respuesta
+    };
+
+  } catch (e) {
+    return {
+      avisado: false,
+      motivo: e.message
+    };
+  }
+}
+
+  async function cargarUsuarios() {
+    const contenedor = document.getElementById('lista-usuarios');
+    contenedor.textContent = 'Cargando…';
+    try {
+      const res = await fetch('/api/usuarios');
+      const usuarios = await res.json();
+      contenedor.innerHTML = usuarios.map(u => `
+        <div class="usuario-card ${esCasoBug3(u) ? 'destacado' : ''}">
+          <div class="fila-top">
+            <span class="nombre">${u.nombre}</span>
+            <span class="id">#${u.id}</span>
+          </div>
+          <div class="meta">
+            <span>Edad: <strong>${u.edad}</strong></span>
+            <span>Compras: <strong>${u.compras}</strong></span>
+          </div>
+          ${esCasoBug3(u) ? '<div class="etiqueta-riesgo">caso ambiguo (Bug 3)</div>' : ''}
+        </div>
+      `).join('');
+    } catch (e) {
+      contenedor.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  function esCasoBug3(u) { return u.compras >= 10 && u.edad < 18; }
+
+  function mostrarSalida(texto, tipo) {
+    const salida = document.getElementById('salida');
+    salida.textContent = texto;
+    salida.className = 'salida ' + tipo;
+  }
+
+  async function dispararBug1(boton) {
+    boton.disabled = true;
+    try {
+      const endpoint = '/api/usuarios/2/es-mayor-de-edad';
+      const res = await fetch(endpoint);
+      const datos = await res.json();
+      let salida = JSON.stringify(datos, null, 2);
+      if (!res.ok) {
+        const n8n = await notificarN8n(datos, endpoint, 'low');
+        salida += n8n.avisado ? '\n\n✓ Aviso enviado a n8n.' : `\n\n⚠ No se pudo avisar a n8n (${n8n.motivo}).`;
+      }
+      mostrarSalida(salida, res.ok ? 'ok' : 'error');
+      cargarUsuarios();
+    } catch (e) {
+      mostrarSalida('Error de red: ' + e.message, 'error');
+    } finally {
+      boton.disabled = false;
+    }
+  }
+
+  async function dispararBug2(boton) {
+    boton.disabled = true;
+    try {
+      const endpoint = '/api/usuarios';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ edad: 25 })
+      });
+      const datos = await res.json();
+      let salida = JSON.stringify(datos, null, 2);
+      if (!res.ok) {
+        const n8n = await notificarN8n(datos, endpoint, 'low');
+        salida += n8n.avisado ? '\n\n✓ Aviso enviado a n8n.' : `\n\n⚠ No se pudo avisar a n8n (${n8n.motivo}).`;
+      }
+      mostrarSalida(salida, res.ok ? 'ok' : 'error');
+    } catch (e) {
+      mostrarSalida('Error de red: ' + e.message, 'error');
+    } finally {
+      boton.disabled = false;
+    }
+  }
+
+  async function dispararBug3(boton) {
+  boton.disabled = true;
+
+  try {
+    // Primero activamos manualmente el escenario del Bug 3.
+    const activar = await fetch('/api/monitoreo/activar-bug3', {
+      method: 'POST'
+    });
+
+    const activacion = await activar.json();
+
+    if (!activar.ok) {
+      throw new Error(
+        activacion.error || 'No se pudo activar Bug 3'
+      );
+    }
+
+    // Ahora consultamos el monitor.
+    const res = await fetch('/api/monitoreo/anomalias');
+    const datos = await res.json();
+
+    const tipo =
+      datos.anomalias_detectadas > 0
+        ? 'riesgo'
+        : 'ok';
+
+    mostrarSalida(
+      JSON.stringify(datos, null, 2),
+      res.ok ? tipo : 'error'
+    );
+
+  } catch (e) {
+    mostrarSalida(
+      'Error de red: ' + e.message,
+      'error'
+    );
+  } finally {
+    boton.disabled = false;
+  }
+}
+
+  async function resetearDatos() {
+    try {
+      const res = await fetch('/api/reset/datos', { method: 'POST' });
+      const datos = await res.json();
+      mostrarSalida(JSON.stringify(datos, null, 2), 'ok');
+      cargarUsuarios();
+    } catch (e) {
+      mostrarSalida('Error de red: ' + e.message, 'error');
+    }
+  }
+
+  async function resetearCodigo() {
+    if (!confirm('Esto va a pisar cualquier fix que el agente haya aplicado y restaurar los 3 bugs originales. ¿Seguir?')) return;
+    try {
+      const res = await fetch('/api/reset/codigo', { method: 'POST' });
+      const datos = await res.json();
+      mostrarSalida(JSON.stringify(datos, null, 2), datos.ok ? 'riesgo' : 'error');
+      cargarUsuarios();
+    } catch (e) {
+      mostrarSalida('Error de red: ' + e.message, 'error');
+    }
+  }
+
+  cargarConfig();
+  cargarUsuarios();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>El Detective de Bugs — Historial</title>
+<style>
+  :root {
+    --bg: #14171c;
+    --panel: #1b1f26;
+    --panel-border: #2a2f38;
+    --text: #e7e9ec;
+    --text-dim: #8b93a1;
+    --teal: #2dd4bf;
+    --amber: #f2a93b;
+    --red: #e5484d;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  header {
+    padding: 28px 32px 20px;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 { margin: 0 0 6px; font-size: 20px; font-weight: 600; }
+  header p { margin: 0; color: var(--text-dim); font-size: 14px; }
+  header a { color: var(--teal); font-size: 13px; text-decoration: none; }
+  header a:hover { text-decoration: underline; }
+
+  .config-bar {
+    padding: 12px 32px;
+    background: #10131700;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .config-bar input {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    flex: 1;
+    min-width: 220px;
+  }
+  .config-bar button {
+    background: var(--teal);
+    color: #08211d;
+    border: none;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  main { padding: 24px 32px 40px; max-width: 1000px; margin: 0 auto; }
+
+  .resumen {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .resumen .pill {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+  .resumen .pill strong { font-size: 16px; display: block; }
+
+  .incidente {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-left-width: 4px;
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+  }
+  .incidente.resuelto { border-left-color: var(--teal); }
+  .incidente.pendiente { border-left-color: var(--amber); }
+
+  .incidente .fila-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .incidente .endpoint {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+  }
+  .incidente .fecha { font-size: 12px; color: var(--text-dim); }
+
+  .etiqueta {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-right: 6px;
+  }
+  .etiqueta.accion-fix { color: var(--teal); border: 1px solid var(--teal); }
+  .etiqueta.accion-escalado { color: var(--amber); border: 1px solid var(--amber); }
+  .etiqueta.confianza-baja { color: var(--red); border: 1px solid var(--red); }
+  .etiqueta.confianza-media { color: var(--amber); border: 1px solid var(--amber); }
+  .etiqueta.confianza-alta { color: var(--text-dim); border: 1px solid var(--panel-border); }
+
+  .incidente .diagnostico { font-size: 14px; margin: 8px 0 6px; }
+  .incidente .resumen-humano { font-size: 13px; color: var(--text-dim); }
+  .incidente .archivo { font-family: var(--mono); font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+
+  .vacio, .error { color: var(--text-dim); text-align: center; padding: 40px 0; font-size: 14px; }
+  .error { color: var(--red); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Historial de incidentes</h1>
+    <p>Cada fila es una acción real del agente, guardada por el pipeline (RAG + agente + persistencia).</p>
+  </div>
+  <a href="/">← Volver a la consola de bugs</a>
+</header>
+
+
+
+<main>
+  <div class="resumen" id="resumen"></div>
+  <div id="lista"></div>
+</main>
+
+<script>
+  // Se autoconfigura leyendo /api/config (que arma repo-victima a partir
+  // de su .env). Si no está seteado ahí, muestra la barra manual como
+  // respaldo — no se guarda en localStorage a propósito, para no dejar
+  // la clave dando vueltas entre sesiones sin que el usuario lo note.
+  let SUPABASE_URL = "";
+  let SUPABASE_KEY = "";
+
+  async function cargarConfigAutomatica() {
+    try {
+      const res = await fetch('/api/config');
+      const config = await res.json();
+      if (config.supabaseUrl && config.supabaseKey) {
+        SUPABASE_URL = config.supabaseUrl.replace(/\/$/, "");
+        SUPABASE_KEY = config.supabaseKey;
+        cargarHistorial();
+        return;
+      }
+    } catch (e) {
+      console.warn('No se pudo leer /api/config:', e.message);
+    }
+    // Sin config automática: mostrar la barra manual.
+    document.getElementById('config-bar').style.display = 'flex';
+  }
+
+
+  async function cargarHistorial() {
+    const lista = document.getElementById('lista');
+    const resumen = document.getElementById('resumen');
+    lista.innerHTML = '<div class="vacio">Cargando…</div>';
+    resumen.innerHTML = '';
+
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/incidentes?select=id,content,metadata,created_at&order=created_at.desc&limit=50`,
+        {
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const detalle = await res.text();
+        throw new Error(`${res.status}: ${detalle}`);
+      }
+
+      const incidentes = await res.json();
+
+      if (incidentes.length === 0) {
+        lista.innerHTML = '<div class="vacio">Todavía no hay incidentes guardados. Dispará un bug y corré el pipeline del agente.</div>';
+        return;
+      }
+
+      const resueltos = incidentes.filter(i => i.metadata?.estado === 'resuelto').length;
+      const pendientes = incidentes.length - resueltos;
+
+      resumen.innerHTML = `
+        <div class="pill"><strong>${incidentes.length}</strong>Total</div>
+        <div class="pill"><strong>${resueltos}</strong>Resueltos</div>
+        <div class="pill"><strong>${pendientes}</strong>Pendientes / confianza baja</div>
+      `;
+
+      lista.innerHTML = incidentes.map(renderIncidente).join('');
+    } catch (e) {
+      lista.innerHTML = `<div class="error">No se pudo conectar: ${e.message}</div>`;
+    }
+  }
+
+  function renderIncidente(inc) {
+    const m = inc.metadata || {};
+    const estado = m.estado === 'resuelto' ? 'resuelto' : 'pendiente';
+    const fecha = m.timestamp ? new Date(m.timestamp).toLocaleString() : new Date(inc.created_at).toLocaleString();
+
+    const claseAccion = m.accion_tomada === 'fix_aplicado' ? 'accion-fix' : 'accion-escalado';
+    const claseConfianza = m.confianza === 'baja' ? 'confianza-baja' : m.confianza === 'media' ? 'confianza-media' : 'confianza-alta';
+
+    return `
+      <div class="incidente ${estado}">
+        <div class="fila-top">
+          <span class="endpoint">${m.endpoint || 'endpoint desconocido'}</span>
+          <span class="fecha">${fecha}</span>
+        </div>
+        <div>
+          <span class="etiqueta ${claseAccion}">${m.accion_tomada || 'sin acción'}</span>
+          <span class="etiqueta ${claseConfianza}">confianza ${m.confianza || '?'}</span>
+        </div>
+        <div class="diagnostico">${m.diagnostico || 'Sin diagnóstico registrado.'}</div>
+        <div class="resumen-humano">${m.resumen_para_humano || ''}</div>
+        ${m.archivo_modificado ? `<div class="archivo">Archivo: ${m.archivo_modificado}</div>` : ''}
+      </div>
+    `;
+  }
+
+  cargarConfigAutomatica();
+</script>
+
+</body>
+</html>
